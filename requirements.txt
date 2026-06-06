@@ -1,0 +1,6 @@
+# Core, CLI and tests need NOTHING beyond the Python standard library.
+# These are only needed for the optional HTTP API + web dashboard surface.
+fastapi>=0.110
+uvicorn>=0.29
+# Dev
+pytest>=7

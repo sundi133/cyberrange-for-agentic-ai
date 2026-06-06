@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cyberange — a cyber range for agentic AI</title>
+<style>
+  :root { --bg:#0b0f17; --panel:#131a26; --line:#243044; --txt:#dbe4f0;
+          --muted:#7d8aa0; --red:#ff5d6c; --purple:#b388ff; --blue:#4fc3f7;
+          --green:#5be584; --yellow:#ffd166; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+         background:var(--bg); color:var(--txt); }
+  header { padding:20px 28px; border-bottom:1px solid var(--line);
+           display:flex; align-items:baseline; gap:16px; }
+  h1 { font-size:20px; margin:0; letter-spacing:.5px; }
+  .tag { color:var(--muted); font-size:12px; }
+  nav { display:flex; gap:6px; padding:14px 28px 0; }
+  nav button { background:var(--panel); color:var(--muted); border:1px solid var(--line);
+               border-bottom:none; padding:10px 18px; cursor:pointer; border-radius:8px 8px 0 0; }
+  nav button.active { color:var(--txt); }
+  nav button[data-team=red].active{ box-shadow:inset 0 -2px 0 var(--red); color:var(--red);}
+  nav button[data-team=purple].active{ box-shadow:inset 0 -2px 0 var(--purple); color:var(--purple);}
+  nav button[data-team=blue].active{ box-shadow:inset 0 -2px 0 var(--blue); color:var(--blue);}
+  main { padding:20px 28px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+           padding:16px; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:340px 1fr; gap:16px; }
+  .scn { padding:10px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px;
+         cursor:pointer; }
+  .scn:hover { border-color:var(--purple); }
+  .scn.sel { border-color:var(--purple); background:#1a2333; }
+  .scn b { color:var(--txt); }
+  .sev-high,.sev-critical { color:var(--red); }
+  .sev-medium { color:var(--yellow); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px;
+          border:1px solid var(--line); color:var(--muted); }
+  .ok { color:var(--green); } .bad { color:var(--red); } .muted{color:var(--muted);}
+  button.act { background:var(--purple); color:#0b0f17; border:none; padding:9px 16px;
+               border-radius:8px; cursor:pointer; font-weight:bold; }
+  button.act.red{ background:var(--red);} button.act.blue{ background:var(--blue);}
+  pre { white-space:pre-wrap; background:#0d121c; border:1px solid var(--line);
+        border-radius:8px; padding:12px; max-height:340px; overflow:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); font-size:12px;}
+  .cell-pass{ color:var(--green);} .cell-fail{ color:var(--red);} .cell-nt{ color:var(--muted);}
+  .kpi { display:flex; gap:24px; flex-wrap:wrap; }
+  .kpi div b { display:block; font-size:24px; color:var(--txt); }
+  .step { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>⛁ Cyberange</h1>
+  <span class="tag">a cyber range for agentic AI · Attack → Detect → Fix → Re-test → Prove</span>
+</header>
+<nav>
+  <button data-team="red" class="active" onclick="show('red')">Red Team</button>
+  <button data-team="purple" onclick="show('purple')">Purple Team</button>
+  <button data-team="blue" onclick="show('blue')">Blue Team</button>
+</nav>
+<main>
+  <!-- RED -->
+  <section id="red">
+    <div class="grid">
+      <div class="panel"><b style="color:var(--red)">Scenario library</b><div id="scnlist"></div></div>
+      <div class="panel" id="reddetail"><span class="muted">Select a scenario, then run the attack.</span></div>
+    </div>
+  </section>
+
+  <!-- PURPLE -->
+  <section id="purple" hidden>
+    <div class="panel">
+      <b style="color:var(--purple)">Control Validation Matrix</b>
+      <span class="muted"> — can we prove the control works?</span>
+      <div id="matrix" style="margin-top:10px">loading…</div>
+    </div>
+    <div class="panel">
+      <b style="color:var(--purple)">Re-test loop (before → after)</b>
+      <div id="purplerun" style="margin-top:10px" class="muted">Pick a scenario in Red Team and click “Re-test”.</div>
+    </div>
+  </section>
+
+  <!-- BLUE -->
+  <section id="blue" hidden>
+    <div class="panel">
+      <b style="color:var(--blue)">Blue Team dashboard</b>
+      <div id="bluekpi" class="kpi" style="margin-top:12px">loading…</div>
+    </div>
+    <div class="panel"><b style="color:var(--blue)">Live agent risk events</b>
+      <div id="blueevents" style="margin-top:10px"></div></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let scenarios = [], selected = null;
+
+function show(team){
+  for(const s of ['red','purple','blue']) $('#'+s).hidden = (s!==team);
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.team===team));
+  if(team==='purple') loadMatrix();
+  if(team==='blue') loadBlue();
+}
+
+async function loadScenarios(){
+  scenarios = await (await fetch('/api/scenarios')).json();
+  $('#scnlist').innerHTML = scenarios.map(s=>`
+    <div class="scn" data-id="${s.id}" onclick="select('${s.id}')">
+      <b>${s.id}</b> ${s.name}<br>
+      <span class="pill">${s.category}</span>
+      <span class="sev-${s.severity}">${s.severity}</span>
+    </div>`).join('');
+}
+
+function select(id){
+  selected = scenarios.find(s=>s.id===id);
+  document.querySelectorAll('.scn').forEach(e=>e.classList.toggle('sel',e.dataset.id===id));
+  $('#reddetail').innerHTML = `
+    <b style="color:var(--red)">${selected.id} — ${selected.name}</b>
+    <p class="muted">${selected.objective}</p>
+    <p><b>Attacker goal:</b> ${selected.attacker_goal}</p>
+    <p><b>Mapped controls:</b> ${selected.mapped_controls.join(', ')}</p>
+    <p><b>Frameworks:</b> ${[...selected.owasp,...selected.mitre_atlas].join(', ')}</p>
+    <button class="act red" onclick="runAttack()">▶ Run attack</button>
+    <button class="act" onclick="reTest()">↻ Re-test (Purple)</button>
+    <div id="redout" style="margin-top:14px"></div>`;
+}
+
+async function runAttack(){
+  const r = await (await fetch(`/api/scenarios/${selected.id}/run`,{method:'POST'})).json();
+  const red = r.red, run = r.run;
+  $('#redout').innerHTML = `
+    <p>Status: <b class="${run.status==='attack_succeeded'?'bad':'ok'}">${run.status}</b>
+       · exfiltration attempt: <b>${red.exfiltration_attempt}</b></p>
+    <b>Agent reasoning trace</b>
+    <pre>${red.agent_reasoning_trace.map(s=>'• '+s).join('\n')}</pre>
+    <b>Tool calls</b>
+    <pre>${red.tool_calls.map(t=>`${t.tool}:${t.arg}${t.blocked?'  [BLOCKED]':''}`).join('\n')}</pre>
+    <b>Suggested finding</b>
+    <pre>${(red.suggested_finding||'(none)')}</pre>`;
+}
+
+async function reTest(){
+  show('purple');
+  const r = await (await fetch(`/api/scenarios/${selected.id}/retest`,{method:'POST'})).json();
+  const c = r.comparison;
+  $('#purplerun').innerHTML = `
+    <b>${selected.id}</b> — ${selected.name}<br>
+    before: <b class="bad">${c.before}</b> → after: <b class="ok">${c.after}</b><br>
+    fixed: ${badge(c.fixed)} · detection fired: ${badge(c.detection_fired)} ·
+    safe task preserved: ${badge(c.safe_task_preserved)}<br>
+    <b>Control status: <span class="${c.control_status==='failed'?'bad':'ok'}">
+      ${c.control_status.toUpperCase()}</span></b>
+    <div class="grid" style="margin-top:10px">
+      <div><b>Before (undefended)</b><pre>${r.before_trace.map(s=>'• '+s).join('\n')}</pre></div>
+      <div><b>After (hardened)</b><pre>${r.after_trace.map(s=>'• '+s).join('\n')}</pre></div>
+    </div>`;
+}
+const badge = b => `<span class="${b?'ok':'bad'}">${b?'✔':'✘'}</span>`;
+
+async function loadMatrix(){
+  const m = await (await fetch('/api/matrix')).json();
+  let rows = '';
+  for(const [cid,cv] of Object.entries(m)){
+    const cells = cv.results.filter(r=>r.status!=='not_tested').map(r=>
+      `<span class="cell-${r.status==='passed'?'pass':'fail'}">${r.scenario_id}${r.status==='passed'?'✔':'✘'}</span>`).join(' ');
+    rows += `<tr><td><b>${cid}</b></td><td class="ok">${cv.passed}</td>
+             <td class="bad">${cv.failed}</td><td>${cells}</td></tr>`;
+  }
+  $('#matrix').innerHTML = `<table><tr><th>Control</th><th>Pass</th><th>Fail</th>
+    <th>Tested against</th></tr>${rows}</table>`;
+}
+
+async function loadBlue(){
+  const d = await (await fetch('/api/blue')).json();
+  $('#bluekpi').innerHTML = `
+    <div><b>${d.detection_coverage_pct}%</b>detection coverage</div>
+    <div><b>${d.blocked_actions}</b>blocked actions</div>
+    <div><b>${d.sensitive_data_touches}</b>sensitive touches</div>
+    <div><b>${d.memory_writes}</b>memory writes</div>
+    <div><b>${d.mean_time_to_detect_s ?? '–'}s</b>MTTD</div>`;
+  $('#blueevents').innerHTML = `<table><tr><th>Scenario</th><th>Severity</th><th>Alerts</th></tr>`+
+    d.live_risk_events.map(e=>`<tr><td>${e.scenario_id}</td>
+      <td class="sev-${e.severity}">${e.severity}</td>
+      <td>${e.alerts.join('<br>')}</td></tr>`).join('')+`</table>`;
+}
+
+loadScenarios();
+</script>
+</body>
+</html>
