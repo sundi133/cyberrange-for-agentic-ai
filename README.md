@@ -28,6 +28,9 @@ scenarios are reproducible and CI/CD friendly.
 All three read from the **Shared Core**: scenario engine · mock tool sandbox ·
 policy engine · trace recorder · detection rules · evidence store · reporting.
 
+> 📘 **Per-team walkthroughs** (copy-paste commands + expected output) live in
+> [`docs/PLAYBOOK.md`](docs/PLAYBOOK.md).
+
 ---
 
 ## Quick start
