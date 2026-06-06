@@ -1,0 +1,10 @@
+# Core, CLI, tests and the live export integrations (SIEM/Jira/GitHub) need
+# NOTHING beyond the Python standard library.
+#
+# Optional HTTP API + web dashboard surface:
+fastapi>=0.110
+uvicorn>=0.29
+# Optional live-LLM agent connector (attack a real Claude agent):
+anthropic>=0.69
+# Dev
+pytest>=7

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cyberange"
+version = "0.1.0"
+description = "A cyber range for agentic AI security — Red, Purple and Blue team surfaces over one shared engine."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Cyberange" }]
+keywords = ["ai-security", "agents", "prompt-injection", "red-team", "purple-team", "blue-team"]
+
+# The core, CLI and tests have ZERO runtime dependencies.
+dependencies = []
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn>=0.29"]
+llm = ["anthropic>=0.69"]  # live-LLM agent connector
+dev = ["pytest>=7"]
+
+[project.scripts]
+cyberange = "cyberange.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cyberange*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Make the in-repo `cyberange` package importable without an install,
+# regardless of how pytest is invoked (`pytest` vs `python -m pytest`).
+pythonpath = ["."]
