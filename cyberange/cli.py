@@ -18,10 +18,19 @@ import sys
 from .core.detections import run_detections
 from .core.engine import ScenarioEngine
 from .core.evidence import EvidenceStore
-from .core.findings import generate_finding, to_github_issue
+from .core.findings import generate_finding, to_github_issue, to_jira_issue
 from .core import report as R
+from .core import integrations
 from .core.validation import build_matrix
 from .scenarios import SCENARIOS, by_id
+
+
+def _engine(live: bool = False) -> ScenarioEngine:
+    """Build an engine backed by the simulator or a real Claude agent."""
+    if live:
+        from .core import LiveAgent  # lazy: needs the Anthropic SDK + API key
+        return ScenarioEngine(agent=LiveAgent())
+    return ScenarioEngine()
 
 
 C = {
@@ -49,7 +58,7 @@ def cmd_list(_args):
 def cmd_run(args):
     sc = by_id(args.scenario)
     controls = args.controls.split(",") if args.controls else []
-    engine = ScenarioEngine()
+    engine = _engine(getattr(args, "live", False))
     run = engine.run(sc, controls=controls)
     _print_run(sc, run)
 
@@ -57,7 +66,7 @@ def cmd_run(args):
 def cmd_loop(args):
     """The product's core loop, end to end."""
     sc = by_id(args.scenario)
-    engine = ScenarioEngine()
+    engine = _engine(getattr(args, "live", False))
     store = EvidenceStore()
 
     print(_c(f"\n=== Cyberange loop: {sc.id} {sc.name} ===", "bold"))
@@ -151,6 +160,47 @@ def cmd_export(args):
     print(json.dumps(to_github_issue(finding), indent=2))
 
 
+def cmd_push(args):
+    """Deliver a scenario's finding/alerts to a real external system."""
+    sc = by_id(args.scenario)
+    run = ScenarioEngine().run(sc, controls=[])
+    target = args.target
+
+    # Build the payload (independent of whether the target is configured).
+    if target == "siem":
+        payload = R.siem_event(run)
+        action = lambda: integrations.send_siem(payload)
+    else:
+        finding = generate_finding(sc, run)
+        if not finding:
+            print("No finding to push (attack did not succeed).")
+            return
+        if target == "github":
+            payload = to_github_issue(finding)
+            action = lambda: integrations.create_github_issue(payload)
+        else:  # jira
+            payload = to_jira_issue(finding)
+            action = lambda: integrations.create_jira_issue(payload)
+
+    if args.dry_run:
+        print(_c(f"[dry-run] would POST to {target}:", "dim"))
+        print(json.dumps(payload, indent=2)[:1200])
+        return
+
+    if not integrations.configured(target):
+        print(_c(f"Target '{target}' is not configured.", "yellow"))
+        print("Set the required env vars (see README), or use --dry-run.")
+        return
+
+    try:
+        result = action()
+    except integrations.IntegrationError as e:
+        print(_c(f"[FAIL] {target}: {e}", "red"))
+        return
+    color = "green" if result.ok else "red"
+    print(_c(str(result), color))
+
+
 # --------------------------------------------------------------------------- #
 def _print_run(sc, run, brief=False):
     color = "red" if run.attack_succeeded else "green"
@@ -178,10 +228,14 @@ def build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser("run", help="run a scenario")
     pr.add_argument("scenario")
     pr.add_argument("--controls", default="")
+    pr.add_argument("--live", action="store_true",
+                    help="attack a real Claude agent (needs ANTHROPIC_API_KEY)")
     pr.set_defaults(func=cmd_run)
 
     pl = sub.add_parser("loop", help="full attack->prove loop")
     pl.add_argument("scenario")
+    pl.add_argument("--live", action="store_true",
+                    help="drive a real Claude agent instead of the simulator")
     pl.set_defaults(func=cmd_loop)
 
     sub.add_parser("matrix", help="control validation matrix").set_defaults(func=cmd_matrix)
@@ -191,6 +245,13 @@ def build_parser() -> argparse.ArgumentParser:
     pe = sub.add_parser("export", help="export finding as GitHub issue")
     pe.add_argument("scenario")
     pe.set_defaults(func=cmd_export)
+
+    pp = sub.add_parser("push", help="deliver finding/alerts to a real system")
+    pp.add_argument("scenario")
+    pp.add_argument("target", choices=["siem", "github", "jira"])
+    pp.add_argument("--dry-run", action="store_true",
+                    help="print the payload instead of sending it")
+    pp.set_defaults(func=cmd_push)
 
     prp = sub.add_parser("replay", help="replay a stored run")
     prp.add_argument("run_id")

@@ -16,4 +16,13 @@ __all__ = [
     "DETECTIONS",
     "run_detections",
     "SimAgent",
+    "LiveAgent",
 ]
+
+
+def __getattr__(name):
+    # Lazy import so the Anthropic SDK is only required when LiveAgent is used.
+    if name == "LiveAgent":
+        from .live_agent import LiveAgent
+        return LiveAgent
+    raise AttributeError(name)

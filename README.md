@@ -50,9 +50,55 @@ python -m cyberange.cli blue
 # Executive / GRC report
 python -m cyberange.cli report
 
-# Export a finding as a GitHub issue
+# Export a finding as a GitHub issue (prints JSON)
 python -m cyberange.cli export SC-001
+
+# Push a finding/alerts to a REAL system (dry-run prints the payload)
+python -m cyberange.cli push SC-001 github --dry-run
+python -m cyberange.cli push SC-001 siem      # needs env vars (below)
 ```
+
+### Attack a real Claude agent (`--live`)
+
+The same scenarios can drive a **real LLM agent** instead of the deterministic
+simulator. The mock tools are exposed to Claude as real, callable tools; every
+call still goes through the Cyberange policy engine and is recorded.
+
+```bash
+pip install -r requirements.txt          # installs the Anthropic SDK
+export ANTHROPIC_API_KEY=sk-ant-...
+python -m cyberange.cli run  SC-001 --live
+python -m cyberange.cli loop SC-001 --live    # before/after vs a real agent
+```
+
+Uses `claude-opus-4-8` with adaptive thinking via the SDK's tool runner. The
+`untrusted_content_separation` control becomes a real system-prompt hardening
+instruction, so you can measure whether it actually stops a live agent.
+
+### CI/CD regression gate
+
+```bash
+python -m cyberange.ci_gate     # exits non-zero if any control regresses
+```
+
+Asserts that every attack still fires undefended, every mapped control still
+blocks it, the safe task still completes, and detection coverage stays at
+100%. Wired into GitHub Actions (`.github/workflows/ci.yml`) so agent security
+regressions fail the build — this is the "Add to CI/CD" regression story.
+
+### Live export endpoints (SIEM / Jira / GitHub)
+
+`push` (CLI) and `POST /api/scenarios/{id}/push/{target}` (API) deliver to real
+systems. Configure via environment variables:
+
+| Target | Env vars |
+| --- | --- |
+| SIEM   | `CYBERANGE_SIEM_WEBHOOK_URL` [, `CYBERANGE_SIEM_AUTH_HEADER`] |
+| GitHub | `GITHUB_TOKEN`, `GITHUB_REPOSITORY` (owner/repo) |
+| Jira   | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY` |
+
+`GET /api/integrations` reports which targets are configured. The integrations
+use only the standard library, so the core stays dependency-free.
 
 ### Web dashboard + HTTP API (optional)
 
@@ -112,16 +158,21 @@ cyberange/
 ├── core/
 │   ├── engine.py        # scenario runner + re-test/comparison
 │   ├── agent.py         # SimAgent — deterministic agent under test
+│   ├── live_agent.py    # LiveAgent — attack a real Claude agent (SDK)
+│   ├── evaluation.py    # shared facts/success/evidence scoring
 │   ├── tools.py         # enterprise-safe mock tool sandbox
 │   ├── policy.py        # policy engine + toggleable control catalog
 │   ├── detections.py    # Blue Team detection rules
 │   ├── findings.py      # Red Team findings + Jira/GitHub export
 │   ├── validation.py    # Purple Team Control Validation Matrix
 │   ├── evidence.py      # replayable run/finding evidence store
+│   ├── integrations.py  # live SIEM/Jira/GitHub delivery (stdlib)
 │   └── report.py        # red/blue/purple dashboards + SIEM export
+├── ci_gate.py           # CI/CD regression gate
 ├── cli.py               # command-line interface
 └── api.py               # optional FastAPI surface
 web/index.html           # single-page Red/Purple/Blue dashboard
+.github/workflows/ci.yml # test + smoke + regression gate
 tests/                   # pytest suite
 ```
 

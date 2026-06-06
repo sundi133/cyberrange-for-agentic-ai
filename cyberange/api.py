@@ -25,6 +25,7 @@ except ImportError as exc:  # pragma: no cover - exercised only without fastapi
 from .core.engine import ScenarioEngine
 from .core.findings import generate_finding, to_github_issue, to_jira_issue
 from .core import report as R
+from .core import integrations
 from .core.validation import build_matrix
 from .scenarios import SCENARIOS, by_id
 
@@ -133,3 +134,37 @@ def export(scenario_id: str, kind: str):
     if kind == "siem":
         return R.siem_event(run)
     raise HTTPException(400, "kind must be one of github|jira|siem")
+
+
+@app.get("/api/integrations")
+def integration_status():
+    """Which live export integrations are configured via env vars."""
+    return {t: integrations.configured(t) for t in ("siem", "github", "jira")}
+
+
+@app.post("/api/scenarios/{scenario_id}/push/{target}")
+def push(scenario_id: str, target: str):
+    """Deliver a scenario's finding/alerts to a real external system."""
+    try:
+        sc = by_id(scenario_id)
+    except KeyError:
+        raise HTTPException(404, "scenario not found")
+    if not integrations.configured(target):
+        raise HTTPException(409, f"integration '{target}' is not configured")
+    run = engine.run(sc, controls=[])
+    try:
+        if target == "siem":
+            result = integrations.send_siem(R.siem_event(run))
+        else:
+            finding = generate_finding(sc, run)
+            if not finding:
+                raise HTTPException(409, "attack did not succeed; no finding")
+            if target == "github":
+                result = integrations.create_github_issue(to_github_issue(finding))
+            elif target == "jira":
+                result = integrations.create_jira_issue(to_jira_issue(finding))
+            else:
+                raise HTTPException(400, "target must be siem|github|jira")
+    except integrations.IntegrationError as e:
+        raise HTTPException(400, str(e))
+    return result.__dict__

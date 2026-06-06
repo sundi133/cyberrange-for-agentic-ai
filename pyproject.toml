@@ -17,6 +17,7 @@ dependencies = []
 
 [project.optional-dependencies]
 api = ["fastapi>=0.110", "uvicorn>=0.29"]
+llm = ["anthropic>=0.69"]  # live-LLM agent connector
 dev = ["pytest>=7"]
 
 [project.scripts]
