@@ -174,6 +174,53 @@ scenario to CI/CD turns it into a permanent agent-security regression test.
 
 ---
 
+## 🎓 Training / CTF mode (all teams, scored)
+
+Turn the library into a capture-the-flag game. Every scenario becomes three
+challenges — one per track — auto-graded by the engine (20 scenarios → 60
+challenges).
+
+```bash
+python -m cyberange.cli ctf challenges              # list all (or --track red|blue|purple)
+python -m cyberange.cli ctf hint blue-SC-005        # stuck? get a hint
+python -m cyberange.cli ctf submit red-SC-001    data_exfiltration     --as alice
+python -m cyberange.cli ctf submit blue-SC-001   DR-003-sensitive-egress --as alice
+python -m cyberange.cli ctf submit purple-SC-008 tool_permission_model  --as alice
+python -m cyberange.cli ctf score --as alice
+python -m cyberange.cli ctf leaderboard
+```
+
+```text
+✔ CORRECT (+70 pts)  CYBERANGE{purple-SC-008}
+  Validated — tool_permission_model blocks the attack.
+
+alice: 150 pts (3/60 solved)
+  red=40  blue=40  purple=70
+```
+
+| Track | Challenge | Answer to submit | How it's graded |
+| --- | --- | --- | --- |
+| 🔴 red    | `red-<SC>`    | the attacker objective (`data_exfiltration`, `shell_executed`, …) | runs the attack, checks it was achieved |
+| 🔵 blue   | `blue-<SC>`   | a detection rule id (`DR-003-sensitive-egress`)        | checks the rule fires on the attack |
+| 🟣 purple | `purple-<SC>` | control id(s) that block it (comma-separated)          | re-runs hardened, must block **and** keep the task working |
+
+Points scale with severity (+10 for the harder defend track). Progress and the
+leaderboard persist under `.cyberange/ctf/`, and the same surface is on the API
+(`/api/ctf/...`).
+
+### Suggested 1-day workshop
+
+| Time | Block | Activity |
+| --- | --- | --- |
+| 09:00 | Setup | clone · `pytest` · `cyberange list` |
+| 09:30 | 🔴 Red | `run`/`export` attack packs · solve `red-*` challenges |
+| 11:00 | 🔵 Blue | `blue` dashboard · write a detection rule · solve `blue-*` |
+| 13:30 | 🟣 Purple | `loop` · `matrix` · solve `purple-*` challenges |
+| 15:00 | Capstone | author a new scenario+control+detection · prove with `ci_gate` |
+| 16:45 | Debrief | `ctf leaderboard` · `report` as the GRC evidence pack |
+
+---
+
 ## Same loop, over the API
 
 Every surface is also an endpoint (`uvicorn cyberange.api:app`):

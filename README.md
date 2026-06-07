@@ -132,9 +132,31 @@ pytest -q          # 65 tests, ~0.1s
 
 ---
 
+## Training / CTF mode
+
+Run Cyberange as a scored, capture-the-flag training for all three teams. Each
+scenario becomes three challenges — one per track — auto-graded by the engine:
+
+```bash
+python -m cyberange.cli ctf challenges --track purple
+python -m cyberange.cli ctf submit red-SC-001 data_exfiltration --as alice
+python -m cyberange.cli ctf submit purple-SC-008 tool_permission_model --as alice
+python -m cyberange.cli ctf score --as alice
+python -m cyberange.cli ctf leaderboard
+```
+
+- **red-`<SC>`** — exploit: name the attacker objective you achieved
+- **blue-`<SC>`** — detect: name a detection rule that fires
+- **purple-`<SC>`** — defend: name control(s) that block it (graded by re-running)
+
+Points scale with severity; solving awards a `CYBERANGE{...}` flag; progress and
+the leaderboard persist under `.cyberange/ctf/`. Also on the API
+(`/api/ctf/challenges`, `/submit`, `/score/{p}`, `/leaderboard`). Good for a
+1-day workshop — see [`docs/PLAYBOOK.md`](docs/PLAYBOOK.md).
+
 ## Scenario library (the moat)
 
-Ten agentic-AI attack scenarios, each mapped to defending controls, catching
+Twenty agentic-AI attack scenarios, each mapped to defending controls, catching
 detections, and OWASP LLM Top 10 / MITRE ATLAS tags:
 
 | ID | Scenario | Category |
@@ -149,6 +171,16 @@ detections, and OWASP LLM Top 10 / MITRE ATLAS tags:
 | SC-008 | Agent executes an unsafe shell command | tool_abuse |
 | SC-009 | Malicious GitHub issue changes code | tool_abuse |
 | SC-010 | Multi-agent delegation bypasses approval | multi_agent |
+| SC-011 | Spoofed support ticket exfiltrates account data | prompt_injection |
+| SC-012 | Poisoned knowledge base triggers unsafe shell | rag_poisoning |
+| SC-013 | Calendar-invite injection poisons memory | memory_poisoning |
+| SC-014 | Compromised wiki page reads cross-tenant data | rag_poisoning |
+| SC-015 | Malicious dependency issue plants a backdoor | tool_abuse |
+| SC-016 | Confused-deputy worker performs privileged refund | multi_agent |
+| SC-017 | Webpage injection posts roadmap to public Slack | prompt_injection |
+| SC-018 | PDF injection exfiltrates PII by email | secret_exfiltration |
+| SC-019 | RAG poison leaks restricted data to public Slack | secret_exfiltration |
+| SC-020 | Email injection exfiltrates source secrets | secret_exfiltration |
 
 ---
 
@@ -171,6 +203,8 @@ cyberange/
 │   ├── evidence.py      # replayable run/finding evidence store
 │   ├── integrations.py  # live SIEM/Jira/GitHub delivery (stdlib)
 │   └── report.py        # red/blue/purple dashboards + SIEM export
+├── training/
+│   └── ctf.py           # CTF / scoring engine + leaderboard
 ├── ci_gate.py           # CI/CD regression gate
 ├── cli.py               # command-line interface
 └── api.py               # optional FastAPI surface

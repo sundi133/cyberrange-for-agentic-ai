@@ -149,6 +149,61 @@ def cmd_replay(args):
     print(json.dumps(store.replay(args.run_id), indent=2, default=str))
 
 
+# --------------------------------------------------------------------------- #
+# CTF / training
+# --------------------------------------------------------------------------- #
+def cmd_ctf_challenges(args):
+    from .training.ctf import build_challenges
+    track = getattr(args, "track", None)
+    rows = [c for c in build_challenges() if not track or c.track == track]
+    print(_c(f"Cyberange CTF — {len(rows)} challenge(s)", "bold"))
+    colors = {"red": "red", "blue": "blue", "purple": "purple"}
+    for c in rows:
+        print(f"  {_c(c.id, colors[c.track])}  [{c.points}pts · {c.difficulty}] "
+              f"{c.title}\n      {_c(c.prompt, 'dim')}")
+
+
+def cmd_ctf_submit(args):
+    from .training.ctf import Scoreboard
+    res = Scoreboard().submit(args.participant, args.challenge, args.answer)
+    if res.already_solved:
+        print(_c(f"Already solved — flag {res.flag}", "yellow"))
+    elif res.correct:
+        print(_c(f"✔ CORRECT (+{res.points} pts)  {res.flag}", "green"))
+        print(f"  {res.message}")
+    else:
+        print(_c("✘ incorrect", "red") + f"  {res.message}")
+
+
+def cmd_ctf_score(args):
+    from .training.ctf import Scoreboard
+    s = Scoreboard().score(args.participant)
+    print(_c(f"{s['participant']}: {s['total']} pts "
+             f"({s['solved']}/{s['of']} solved)", "bold"))
+    print(f"  red={s['by_track']['red']}  blue={s['by_track']['blue']}  "
+          f"purple={s['by_track']['purple']}")
+
+
+def cmd_ctf_leaderboard(args):
+    from .training.ctf import Scoreboard
+    rows = Scoreboard().leaderboard()
+    print(_c("Cyberange CTF leaderboard", "bold"))
+    if not rows:
+        print("  (no participants yet)")
+    for i, r in enumerate(rows, 1):
+        print(f"  {i}. {r['participant']:<16} {r['total']:>4} pts "
+              f"({r['solved']} solved)")
+
+
+def cmd_ctf_hint(args):
+    from .training.ctf import CHALLENGES, HINTS
+    c = CHALLENGES.get(args.challenge)
+    if not c:
+        print(f"No such challenge: {args.challenge}")
+        return
+    print(HINTS[c.track].replace("<SC>", c.scenario_id))
+
+
 def cmd_export(args):
     sc = by_id(args.scenario)
     engine = ScenarioEngine()
@@ -256,6 +311,31 @@ def build_parser() -> argparse.ArgumentParser:
     prp = sub.add_parser("replay", help="replay a stored run")
     prp.add_argument("run_id")
     prp.set_defaults(func=cmd_replay)
+
+    # CTF / training
+    pc = sub.add_parser("ctf", help="training CTF / scoring")
+    csub = pc.add_subparsers(dest="ctf_cmd", required=True)
+
+    cl = csub.add_parser("challenges", help="list challenges")
+    cl.add_argument("--track", choices=["red", "blue", "purple"])
+    cl.set_defaults(func=cmd_ctf_challenges)
+
+    cs = csub.add_parser("submit", help="submit an answer")
+    cs.add_argument("challenge")
+    cs.add_argument("answer")
+    cs.add_argument("--as", dest="participant", default="anon")
+    cs.set_defaults(func=cmd_ctf_submit)
+
+    csc = csub.add_parser("score", help="show a participant's score")
+    csc.add_argument("--as", dest="participant", default="anon")
+    csc.set_defaults(func=cmd_ctf_score)
+
+    csub.add_parser("leaderboard", help="ranked participants").set_defaults(
+        func=cmd_ctf_leaderboard)
+
+    ch = csub.add_parser("hint", help="get a hint for a challenge")
+    ch.add_argument("challenge")
+    ch.set_defaults(func=cmd_ctf_hint)
     return p
 
 
