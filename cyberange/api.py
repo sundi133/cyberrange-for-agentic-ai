@@ -136,6 +136,36 @@ def export(scenario_id: str, kind: str):
     raise HTTPException(400, "kind must be one of github|jira|siem")
 
 
+@app.get("/api/ctf/challenges")
+def ctf_challenges(track: str | None = None):
+    from .training.ctf import build_challenges
+    return [c.public() for c in build_challenges() if not track or c.track == track]
+
+
+@app.post("/api/ctf/submit")
+def ctf_submit(payload: dict):
+    """Body: {participant, challenge, answer}."""
+    from .training.ctf import Scoreboard
+    try:
+        res = Scoreboard().submit(
+            payload["participant"], payload["challenge"], payload["answer"])
+    except KeyError:
+        raise HTTPException(400, "body needs participant, challenge, answer")
+    return res.__dict__
+
+
+@app.get("/api/ctf/score/{participant}")
+def ctf_score(participant: str):
+    from .training.ctf import Scoreboard
+    return Scoreboard().score(participant)
+
+
+@app.get("/api/ctf/leaderboard")
+def ctf_leaderboard():
+    from .training.ctf import Scoreboard
+    return Scoreboard().leaderboard()
+
+
 @app.get("/api/integrations")
 def integration_status():
     """Which live export integrations are configured via env vars."""
